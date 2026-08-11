@@ -18,7 +18,8 @@
     "url": "git+https://github.com/marcoskichel/pi-session-worktrees.git"
   },
   "files": [
-    "src",
+    "src/index.ts",
+    "src/core.ts",
     "README.md",
     "LICENSE"
   ],
