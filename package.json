@@ -1,0 +1,44 @@
+{
+  "name": "pi-session-worktrees",
+  "version": "0.0.0",
+  "description": "Pi extension that maps the git worktrees used by the current session, shows them in the footer, and publishes them as JSON for external tools like tmux pickers.",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-extension",
+    "coding-agent",
+    "git",
+    "worktree",
+    "tmux"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/marcoskichel/pi-session-worktrees.git"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "check": "tsc && biome check",
+    "dev": "node src/dev.ts",
+    "test": "node --test",
+    "fix": "biome check --write"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.10",
+    "@earendil-works/pi-coding-agent": "^0.84.0",
+    "typescript": "^5.9.0"
+  },
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  }
+}

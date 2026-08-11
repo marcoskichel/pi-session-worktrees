@@ -1,0 +1,18 @@
+# pi-session-worktrees
+
+The extension only runs inside pi. Unit tests cover `src/core.ts` and prove nothing
+about `src/index.ts` wiring, so test a change to `src/index.ts` in a live pi session
+before you push it.
+
+## Commands
+
+- `npm run check` — types and lint.
+- `npm test` — unit tests.
+- `npm run dev` — load this checkout in pi. `npm run dev -- --off` restores.
+
+## Rules
+
+- Keep pi imports out of `src/core.ts` so the unit tests stay runnable.
+- The registry JSON shape is a public contract for outside tools. Changing a field
+  name is a breaking change.
+- Never switch branches in this checkout. Create a worktree under `_worktrees/`.
