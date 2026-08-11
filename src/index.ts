@@ -1,6 +1,9 @@
 /**
  * Maps the git worktrees this session actually touched: the session cwd plus every
- * path that shows up in tool arguments, resolved to its worktree root.
+ * path that shows up in tool arguments or tool output, resolved to its worktree root.
+ *
+ * A path that names a worktree the run is about to create does not exist yet when it is
+ * first seen, so unresolved paths are kept and retried after later tool calls.
  *
  * Only linked worktrees count. The main checkout is not interesting: external tools
  * already know it.
@@ -38,20 +41,14 @@ import {
 
 const GIT_TIMEOUT_MS = 10_000;
 const STALE_MS = 7 * 24 * 60 * 60 * 1000;
+const MAX_PENDING = 50;
 const REGISTRY_DIR = join(homedir(), CONFIG_DIR_NAME, "session-worktrees");
 
-/** A candidate is often a file that does not exist yet (a pending write), so fall back to its parent. */
-function directoryOf(candidate: string, cwd: string): string | undefined {
+function absolute(candidate: string, cwd: string): string {
 	const expanded = candidate.startsWith("~")
 		? join(homedir(), candidate.slice(1))
 		: candidate;
-	const abs = isAbsolute(expanded) ? expanded : resolve(cwd, expanded);
-	for (const path of [abs, dirname(abs)]) {
-		try {
-			if (statSync(path).isDirectory()) return path;
-		} catch {}
-	}
-	return undefined;
+	return isAbsolute(expanded) ? expanded : resolve(cwd, expanded);
 }
 
 function registryFile(ctx: ExtensionContext): string | undefined {
@@ -80,6 +77,7 @@ function restore(file: string | undefined, worktrees: Worktrees): void {
 export default function (pi: ExtensionAPI) {
 	const worktrees: Worktrees = new Map();
 	const seenDirs = new Set<string>();
+	const pending = new Set<string>();
 
 	const persist = (ctx: ExtensionContext) => {
 		const file = registryFile(ctx);
@@ -139,8 +137,14 @@ export default function (pi: ExtensionAPI) {
 	const track = async (ctx: ExtensionContext, paths: string[]) => {
 		let changed = false;
 		for (const candidate of paths) {
-			const dir = directoryOf(candidate, ctx.cwd);
-			if (!dir || seenDirs.has(dir)) continue;
+			const abs = absolute(candidate, ctx.cwd);
+			if (!existsSync(abs)) {
+				if (pending.size < MAX_PENDING) pending.add(candidate);
+				continue;
+			}
+			pending.delete(candidate);
+			const dir = statSync(abs).isDirectory() ? abs : dirname(abs);
+			if (seenDirs.has(dir) || worktrees.has(dir)) continue;
 			seenDirs.add(dir);
 			const wt = await inspect(dir);
 			if (!wt || worktrees.has(wt.path)) continue;
@@ -159,6 +163,7 @@ export default function (pi: ExtensionAPI) {
 	pi.on("session_start", async (_event, ctx) => {
 		worktrees.clear();
 		seenDirs.clear();
+		pending.clear();
 		pruneStale();
 		restore(registryFile(ctx), worktrees);
 		await track(ctx, [ctx.cwd]);
@@ -168,6 +173,17 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("tool_execution_start", async (event, ctx) => {
 		await update(ctx, candidates(JSON.stringify(event.args ?? "")));
+	});
+
+	pi.on("tool_execution_end", async (event, ctx) => {
+		await update(ctx, [
+			...pending,
+			...candidates(JSON.stringify(event.result ?? "")),
+		]);
+	});
+
+	pi.on("agent_settled", async (_event, ctx) => {
+		await update(ctx, [...pending]);
 	});
 
 	pi.on("user_bash", async (event, ctx) => {
