@@ -2,7 +2,7 @@
 
 A [pi](https://github.com/badlogic/pi-mono) extension that maps the git worktrees the current session is working in, shows them in the footer as `⑂ feat/a fix/b`, and publishes them as JSON so outside tools (tmux pickers, shell scripts) can offer the same list.
 
-Worktrees are detected automatically: the session cwd, every path in a tool call, and every path in a `!` bash command are resolved to their worktree root. Only linked worktrees are mapped — the main checkout is left out because external tools already know it.
+Worktrees are detected automatically: the session cwd, every path in a tool call, and every path in a `!` bash command are resolved to their worktree root. Paths that appear only in tool *output* count only when the directory was created during this session — that catches a worktree the session just made without harvesting every entry a `git worktree list` prints. Only linked worktrees are mapped — the main checkout is left out because external tools already know it.
 
 ## Install
 

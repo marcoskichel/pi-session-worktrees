@@ -1,6 +1,11 @@
 /**
- * Maps the git worktrees this session actually touched: the session cwd plus every
- * path that shows up in tool arguments or tool output, resolved to its worktree root.
+ * Maps the git worktrees this session actually works in: the session cwd plus every
+ * path the agent or the user acts on (tool arguments, `!` bash commands), resolved to
+ * its worktree root.
+ *
+ * Tool output is a weaker signal — one `git worktree list` mentions every worktree in
+ * the repo — so a path seen only in output counts only when that directory was created
+ * during this session, which is how a worktree the run just made gets picked up.
  *
  * A path that names a worktree the run is about to create does not exist yet when it is
  * first seen, so unresolved paths are kept and retried after later tool calls.
@@ -68,9 +73,13 @@ function pruneStale(): void {
 
 function restore(file: string | undefined, worktrees: Worktrees): void {
 	if (!file || !existsSync(file)) return;
-	const saved = JSON.parse(readFileSync(file, "utf8")) as Registry;
-	for (const wt of saved.worktrees) {
-		if (existsSync(wt.path)) worktrees.set(wt.path, wt);
+	try {
+		const saved = JSON.parse(readFileSync(file, "utf8")) as Registry;
+		for (const wt of saved.worktrees ?? []) {
+			if (existsSync(wt.path)) worktrees.set(wt.path, wt);
+		}
+	} catch {
+		// A truncated or hand-edited registry must not stop the session from starting.
 	}
 }
 
@@ -78,6 +87,19 @@ export default function (pi: ExtensionAPI) {
 	const worktrees: Worktrees = new Map();
 	const seenDirs = new Set<string>();
 	const pending = new Set<string>();
+	let sessionStart = Date.now();
+
+	/**
+	 * ponytail: birthtime only. Filesystems without it report ctime instead, so there a
+	 * recently modified old worktree can slip in through tool output. Harmless enough.
+	 */
+	const createdThisSession = (dir: string) => {
+		try {
+			return statSync(dir).birthtimeMs >= sessionStart;
+		} catch {
+			return false;
+		}
+	};
 
 	const persist = (ctx: ExtensionContext) => {
 		const file = registryFile(ctx);
@@ -134,17 +156,24 @@ export default function (pi: ExtensionAPI) {
 		}
 	};
 
-	const track = async (ctx: ExtensionContext, paths: string[]) => {
+	/** `used` marks paths the session acted on, as opposed to ones it merely printed. */
+	const track = async (
+		ctx: ExtensionContext,
+		paths: string[],
+		used: boolean,
+	) => {
 		let changed = false;
 		for (const candidate of paths) {
 			const abs = absolute(candidate, ctx.cwd);
 			if (!existsSync(abs)) {
-				if (pending.size < MAX_PENDING) pending.add(candidate);
+				if (used && pending.size < MAX_PENDING) pending.add(candidate);
 				continue;
 			}
 			pending.delete(candidate);
 			const dir = statSync(abs).isDirectory() ? abs : dirname(abs);
 			if (seenDirs.has(dir) || worktrees.has(dir)) continue;
+			// Not cached: the same dir may still arrive later as a path the session uses.
+			if (!used && !createdThisSession(dir)) continue;
 			seenDirs.add(dir);
 			const wt = await inspect(dir);
 			if (!wt || worktrees.has(wt.path)) continue;
@@ -154,8 +183,12 @@ export default function (pi: ExtensionAPI) {
 		return changed;
 	};
 
-	const update = async (ctx: ExtensionContext, paths: string[]) => {
-		if (!(await track(ctx, paths))) return;
+	const update = async (
+		ctx: ExtensionContext,
+		paths: string[],
+		used: boolean,
+	) => {
+		if (!(await track(ctx, paths, used))) return;
 		render(ctx);
 		persist(ctx);
 	};
@@ -164,30 +197,29 @@ export default function (pi: ExtensionAPI) {
 		worktrees.clear();
 		seenDirs.clear();
 		pending.clear();
+		sessionStart = Date.now();
 		pruneStale();
 		restore(registryFile(ctx), worktrees);
-		await track(ctx, [ctx.cwd]);
+		await track(ctx, [ctx.cwd], true);
 		render(ctx);
 		persist(ctx);
 	});
 
 	pi.on("tool_execution_start", async (event, ctx) => {
-		await update(ctx, candidates(JSON.stringify(event.args ?? "")));
+		await update(ctx, candidates(JSON.stringify(event.args ?? "")), true);
 	});
 
 	pi.on("tool_execution_end", async (event, ctx) => {
-		await update(ctx, [
-			...pending,
-			...candidates(JSON.stringify(event.result ?? "")),
-		]);
+		await update(ctx, [...pending], true);
+		await update(ctx, candidates(JSON.stringify(event.result ?? "")), false);
 	});
 
 	pi.on("agent_settled", async (_event, ctx) => {
-		await update(ctx, [...pending]);
+		await update(ctx, [...pending], true);
 	});
 
 	pi.on("user_bash", async (event, ctx) => {
-		await update(ctx, candidates(event.command));
+		await update(ctx, candidates(event.command), true);
 	});
 
 	pi.registerCommand("worktrees", {
