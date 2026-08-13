@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2](https://github.com/marcoskichel/pi-session-worktrees/compare/pi-session-worktrees-v1.0.1...pi-session-worktrees-v1.0.2) (2026-08-13)
+
+
+### Bug Fixes
+
+* only map worktrees the session uses or creates ([#6](https://github.com/marcoskichel/pi-session-worktrees/issues/6)) ([c8a6b86](https://github.com/marcoskichel/pi-session-worktrees/commit/c8a6b86d6be551d3dd7aa163e11967d5da7fc19e))
+
 ## [1.0.1](https://github.com/marcoskichel/pi-session-worktrees/compare/pi-session-worktrees-v1.0.0...pi-session-worktrees-v1.0.1) (2026-08-11)
 
 
