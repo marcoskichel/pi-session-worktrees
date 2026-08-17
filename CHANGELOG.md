@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.3](https://github.com/marcoskichel/pi-session-worktrees/compare/pi-session-worktrees-v1.0.2...pi-session-worktrees-v1.0.3) (2026-08-17)
+
+
+### Bug Fixes
+
+* republish to restore npm search indexing ([#9](https://github.com/marcoskichel/pi-session-worktrees/issues/9)) ([38ed405](https://github.com/marcoskichel/pi-session-worktrees/commit/38ed405e67ce47c7a5b498ef91e337e57f2705d1))
+
 ## [1.0.2](https://github.com/marcoskichel/pi-session-worktrees/compare/pi-session-worktrees-v1.0.1...pi-session-worktrees-v1.0.2) (2026-08-13)
 
 
