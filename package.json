@@ -1,6 +1,6 @@
 {
   "name": "pi-session-worktrees",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Pi extension that maps the git worktrees used by the current session, shows them in the footer, and publishes them as JSON for external tools like tmux pickers.",
   "keywords": [
     "pi-package",
